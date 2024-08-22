@@ -1,8 +1,13 @@
 #include <iostream>
+#include <fstream>
+#include <sstream>
 #include <memory>
 #include <string>
 #include <grpcpp/grpcpp.h>
 #include "greeter.grpc.pb.h"
+#include "utility/utility.h"
+#include <chrono>
+#include <memory>
 
 void SayHello(std::shared_ptr<grpc::Channel> channel, std::string name) {
 
@@ -24,6 +29,14 @@ void SayHello(std::shared_ptr<grpc::Channel> channel, std::string name) {
     }
 }
 
+std::string LoadFile(const std::string & path) {
+    // Load the CA certificate file into a string
+    std::ifstream file(path);
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    return buffer.str();
+}
+
 int main(int argc, char** argv) {
     // Check if at least one argument is provided (excluding the program name)
     std::string name;
@@ -35,9 +48,47 @@ int main(int argc, char** argv) {
         name = argv[1];
     }
 
-    std::string target_str("localhost:50051");
-    std::cout << "[client] connecting to server at " << target_str << std::endl;
-    auto channel = grpc::CreateChannel(target_str, grpc::InsecureChannelCredentials());
-    SayHello(channel, name);
+    grpc::SslCredentialsOptions ssl_opts;
+
+    ssl_opts.pem_root_certs = LoadFile(GetExecutableDir() + "/server.crt");
+    auto channel = grpc::CreateChannel("localhost:50051", grpc::SslCredentials(ssl_opts));
+
+    std::unique_ptr<example::Greeter::Stub> stub = example::Greeter::NewStub(channel);
+    {
+        grpc::ClientContext context;
+        example::ListenMessagesRequest request;
+        std::unique_ptr<grpc::ClientReader<example::Messages>> reader(stub->ListenMessages(&context, request));
+
+        example::Messages messages;
+        while(reader->Read(&messages)){
+            for (int i = 0; i < messages.messages_size(); i++) {
+                std::cout << messages.messages(i).content() << std::endl;
+            }
+        }
+
+        grpc::Status status = reader->Finish();
+        if (!status.ok()) {
+            std::cerr << "Stream ended with error" << status.error_message() << std::endl;
+        }
+    }
+
+    std::string line;
+    while (std::getline(std::cin, line))
+    {
+        example::Message message;
+        message.set_content(line);
+
+        example::MessageResponse reply;
+
+        grpc::ClientContext context;
+        context.set_deadline(std::chrono::system_clock::now() + std::chrono::seconds(2));
+
+        grpc::Status status = stub->SendMessage(&context, message, &reply);
+
+        if (!status.ok()) {
+            std::cerr << "[client] RPC failed" << std::endl;
+        }
+    }
+
     return 0;
 }

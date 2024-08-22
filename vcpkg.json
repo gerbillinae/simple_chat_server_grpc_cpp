@@ -8,5 +8,9 @@
   }, {
     "name" : "grpc",
     "version>=" : "1.60.0#1"
-  } ]
+  }, {
+    "name" : "sqlite3",
+    "version>=" : "3.46.1"
+  }
+   ]
 }

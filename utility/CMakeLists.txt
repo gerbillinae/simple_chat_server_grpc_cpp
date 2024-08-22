@@ -1,0 +1,17 @@
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
+    message("Building utility for windows")
+    set(SOURCES utility_windows.cpp)
+elseif(${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
+    message("Building utility for mac")
+    set(SOURCES utility_macos.cpp)
+elseif(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+    message("Building utility for linux")
+    set(SOURCES utility_linux.cpp)
+else()
+    message(FATAL_ERROR "Unsupported operating system")
+endif()
+
+
+add_library(utility)
+target_sources(utility PRIVATE ${SOURCES})
+target_include_directories(utility PUBLIC ./include)
